@@ -1,0 +1,816 @@
+#!/bin/bash
+
+###############################################################################
+#                                                                             #
+# nxwatchdog - This script is a watchdog to monitor any generic process.      #
+#                                                                             #
+# Writen by Sergio Nardi Spinelli                                             #
+# sergio.nardi@gmail.com
+#                                                                             #
+###############################################################################
+# TODO check for return error codes 192 ????
+# TODO md5sum integrity
+# TODO log user 
+# TODO end all log messages with full stop.
+# TODO: internal_proc_state: better user messages when execute commands.
+
+# DEBUG
+#set -o xtrace
+
+# To enable job control
+#set -o monitor
+
+#
+# External tools.
+#
+declare -r ps=`which ps`
+declare -r cat=`which cat`
+declare -r grep=`which grep`
+declare -r awk=`which awk`
+declare -r echo=`which echo`
+declare -r sleep=`which sleep`
+declare -r rm=`which rm`
+declare -r kill=`which kill`
+declare -r date=`which date`
+declare -r tr=`which tr`
+
+#
+# Global variables.
+#
+declare -r VERSION=0.3.0
+declare -r watchdog_name=${0##*/}
+declare -r my_pid_file_name=${watchdog_name}".pid"
+declare -r process_pid_file_name="process.pid"
+declare -r my_pid=$$
+# This file store the command line we want to execute.
+declare -r process_cmd_file="process.cmd"
+# PID of process we are monitoring.
+declare process_pid
+# Command string to execute and monitor.
+declare cmdstring
+# Amount of second to wait for the process to stop.
+declare -r seconds_wait_to_stop=4
+# Amount of second to wait for the process to start.
+declare -r seconds_wait_to_start=1
+# Seconds the watchdog is going to sleep.
+declare -r seconds_watchdog_sleep=0.5
+# Number of command line parameters.
+declare -r n_params=$#
+# Logging directory.
+declare log_dir
+# Logging file name.
+declare -r logfile=${watchdog_name}".log"
+# Standard output and standard error are redirected to this file.
+declare -r outfile=${watchdog_name}".out"
+# Directory where to write the outfile.
+declare out_dir
+# Process start time. The time at which the monitored process started to run and
+# the file name to store this value.
+declare process_start_time
+declare -r process_start_time_file="process.ts"
+# Watchdog start time. The time at which watchdog started to run and
+# the file name to store this value.
+declare watchdog_start_time
+declare -r watchdog_start_time_file="${watchdog_name}".ts
+# Counter for the times the process has been manually started and
+# the file name to store this counter.
+declare num_manual_start=0
+declare -r num_manual_start_file="manual_start.count"
+# Counter for the times the process has been automatically started and
+# the file name to store this counter.
+declare num_auto_start=0
+declare -r num_auto_start_file="auto_start.count"
+# Counter for the times the process has been stopped and
+# the file name to store this counter.
+declare num_stop=0
+declare -r num_stop_file="stop.count"
+# Counter for the times the process has been aborted and
+# the file name to store this counter.
+declare num_abort=0
+declare -r num_abort_file="abort.count"
+# Real process state (i.e. unix process state): {STOPPED | RUNNING}
+declare proc_state
+# Internal process state: {RUNNING | STARTING | ABORTING | STOPPING | STOPPED}
+declare internal_proc_state
+declare config_dir
+declare run_mode
+declare cmd
+# Defines the state of watchdog (i.e. STARTED or STOPPED).
+declare watchdog_state
+# Maximun size for a core file.
+declare -r max_core_size_limit=1000000
+# Action files: Each of this files, stores one action (command) to be executed
+#               when a transition ends to the state with the file name extension.
+declare -r action_running_file="action.running"
+declare -r action_starting_file="action.starting"
+declare -r action_aborting_file="action.aborting"
+declare -r action_stopping_file="action.stopping"
+declare -r action_stopped_file="action.stopped"
+
+################################################################################
+# Function: check_unique_watchdog_instance                                     #
+# Description: Verifies that only one instance of me (watchdog) is running     #
+#              at a time.                                                      #
+################################################################################
+check_unique_watchdog_instance()
+{
+    #debug_msg "--check_unique_watchdog_instance--" $LINENO
+
+    # Seems like there is another instance of watchdog running.
+    if test -f ${my_pid_file_name} ; then
+        saved_pid=`${cat} ${my_pid_file_name}`
+
+        # Sanity check.
+        if test -z ${saved_pid} ; then
+            log_msg "CRITICAL: The file ${my_pid_file_name} is empty."
+            log_msg "\tI can't identify if there is another instance of watchdog running."
+            exit 0
+        fi
+
+        # If PID values don't match, then we need to check if the saved PID
+        # really corresponds to a running instance of watchdog.
+        if test ! "${my_pid}" = "${saved_pid}" ; then
+            current_pid=`${ps} -e -o pid,args|${grep} "^ *${saved_pid} .*/bin/bash.*${watchdog_name}"|${grep} -v grep|${awk} '{ print $1; }' `
+            if test -n "${current_pid}" ; then
+                # If current_pid is not empty, then watchdog is running.
+                exit 0
+            else
+                # The saved pid value don't correspond to a watchdog instance.
+                # So, I'm going to update the value with my pid, and start
+                # continue to run.
+                ${echo} ${my_pid} > ${my_pid_file_name}
+                log_msg "${watchdog_name} started."
+            fi
+        fi
+    else #This is the first time I have been asked to run.
+        ${echo} ${my_pid} > ${my_pid_file_name}
+        log_msg "${watchdog_name} started."
+    fi
+}
+
+################################################################################
+# Function: check_process_state                                                #
+# Description: Check the process state for a particular PID.                   #
+################################################################################
+check_process_state()
+{
+    declare pid=$1
+    declare state
+    #debug_msg "--${FUNCNAME}--" $LINENO
+
+    state=`${ps} -e -o pid,state|${grep} "^ *${pid} "|${awk} '{ print $2; }'`
+
+    # We don't check the internal state of process (i.e. keepalive). We  only
+    # check the process state.
+    # If the process state returned by ps is X (dead) or Z (zombie), we returns
+    # the state "STOPPED". Otherwise, the state is "RUNNING"
+    # In the case that ps returns a state equal to T (stopped), a message is
+    # written to the log.
+    if test -z "${state}" -o "${state}" = "X" -o "${state}" = "Z" ; then
+        proc_state="STOPPED"
+    else
+        if test "${state}" = "T" ; then
+            log_msg "WARNING: The process (${pid}) is stopped [${cmdstring}]"
+        fi
+        proc_state="RUNNING"
+    fi
+}
+
+################################################################################
+# Function: check_watchdog_status                                              #
+# Description: Check the watchdog state.                                       #
+#              This function is intended to be use only in command mode.       #
+# Parameters:                                                                  #
+#             void                                                             #
+# Return value:                                                                #
+#             watchdog_state: STOPPED | RUNNING                                #
+################################################################################
+check_watchdog_state()
+{
+    declare state
+
+    watchdog_state="RUNNING"
+
+    if test ! -f ${my_pid_file_name} ; then
+        watchdog_state="STOPPED"
+    else
+        pid=`${cat} ${my_pid_file_name}`
+        if test -z "${pid}" ; then
+            ${echo} "CRITICAL: The file ${my_pid_file_name} is empty."
+            ${echo} "I can't identify if there is a running instance of this watchdog."
+            exit 0
+        fi
+
+        state=`${ps} -e -o pid,state|${grep} ${pid}|${awk} '{ print $2; }'`
+            
+        if test -z "${state}" -o "${state}" = "X" -o "${state}" = "Z" ; then
+            watchdog_state="STOPPED"
+        elif test "${state}" = "T" ; then
+            ${echo} "WARNING: This instance of watchdog is stopped."
+            exit 0
+        fi
+    fi
+}
+
+################################################################################
+# Function: start_process                                                      #
+# Description: Start a process.                                                #
+################################################################################
+start_process()
+{
+    #debug_msg "--${FUNCNAME}--" $LINENO
+    # Read the command to execute.
+    #TODO:handle error.
+    cmdstring=`${cat} ${process_cmd_file}`
+
+    # Execute the process in background.
+    ${cmdstring}&
+
+    # Save the PID.
+    process_pid=$!
+    ${echo} ${process_pid} > ${process_pid_file_name}
+
+    # Wait a little to let the process startup.
+    ${sleep} ${seconds_wait_to_start}
+
+    # Update process state.
+    check_process_state ${process_pid}
+
+    # Remove PID file.
+    if test "${proc_state}" = "STOPPED" ; then
+        ${rm} -f ${process_pid_file_name}
+    fi
+}
+
+################################################################################
+# Function: abort_process                                                      #
+# Description: Abort the running process (sends a SIGABRT signal).             #
+################################################################################
+abort_process()
+{
+    declare pid=$1
+    #debug_msg "--${FUNCNAME}--" $LINENO
+    ${kill} -s ABRT ${pid}
+    if test ! "$?" = "0" ; then
+        log_msg "WARNING: kill fails when trying to abort process."
+    fi
+
+    # Wait a little.
+    ${sleep} 0.5
+
+    # Update process state.
+    check_process_state ${pid}
+
+    # Remove PID file.
+    if test "${proc_state}" = "STOPPED" ; then
+        ${rm} -f ${process_pid_file_name}
+    fi
+}
+
+
+################################################################################
+# Function: stop_process                                                       #
+# Description: Stop a process.                                                 #
+################################################################################
+stop_process()
+{
+    declare pid=$1
+    ${kill} -s TERM ${pid}
+    if test ! "$?" = "0" ; then
+        log_msg "WARNING: kill fails when trying to stop process."
+    fi
+
+    # Wait a little to let the process finish.
+    ${sleep} ${seconds_wait_to_stop}
+
+    # Update process state.
+    check_process_state ${pid}
+
+    # Remove PID file.
+    if test "${proc_state}" = "STOPPED" ; then
+        ${rm} -f ${process_pid_file_name}
+    fi
+}
+
+
+################################################################################
+# Function: log_msg                                                            #
+# Description: Write messages in a log file.                                   #
+################################################################################
+log_msg()
+{
+    msg=$1
+    ${echo} -e "[`${date} +"%b %d %H:%M:%S"`] ${msg}" >> ${log_dir}/${logfile}
+}
+
+
+################################################################################
+# Function: debug_msg                                                          #
+# Description: Just to write debug messages on stdout.                         #
+################################################################################
+debug_msg()
+{
+    ${echo} [$2] $1
+}
+
+
+################################################################################
+# Function: run_watchdog                                                       #
+# Description: This function implemments the watchdog functionallity.          #
+################################################################################
+run_watchdog()
+{
+    #debug_msg "--${FUNCNAME}--" $LINENO
+    declare start_type
+
+    # Verify only one instance of watchdog is running at time.
+    check_unique_watchdog_instance
+
+    # Set execution limits.
+    set_limits
+
+    # Record the time at what start run.
+    watchdog_start_time=`${date}`
+    ${echo} ${watchdog_start_time} > ${watchdog_start_time_file}
+    # Init all the files to store the counters.
+    ${echo} "0" > ${num_manual_start_file}
+    ${echo} "0" > ${num_auto_start_file}
+    ${echo} "0" > ${num_stop_file}
+    ${echo} "0" > ${num_abort_file}
+
+    # Set initial state.
+    if test -f ${process_pid_file_name} ; then
+        process_pid=`${cat} ${process_pid_file_name}`
+
+        # Sanity check.
+        if test -z ${process_pid} ; then
+            log_msg "CRITICAL: The file ${process_pid_file_name} is empty."
+            log_msg "\tI can't identify if there is another instance of the process running."
+            log_msg "\twatchdog stopped."
+            exit 0
+        fi
+
+        check_process_state ${process_pid}
+    else
+        proc_state="STOPPED"
+    fi
+
+    #Set internal proc state
+    if test "${proc_state}" = "RUNNING" ; then
+        # transition: 1
+        internal_proc_state="RUNNING"
+        log_msg "INFO: Process (${process_pid}) is RUNNING."
+    else
+        # transition: 2
+        internal_proc_state="STOPPED"
+        log_msg "INFO: Process is STOPPED."
+    fi
+
+    # Infinite loop.
+    while ((1)); do
+        # Start process.
+        # Will try to start process if there is not the stop command, nor
+        # the abort command.
+        if test ! -f "stop.cmd" -a ! -f "abort.cmd" ; then
+            if test "${proc_state}" = "STOPPED" ; then
+                # transition: 6, 12
+                internal_proc_state="STARTING"
+                log_msg "INFO: Process is STARTING."
+                execute_action ${internal_proc_state}
+
+                # This check is to know if we are doing a manual start,
+                # or an automatic start (due to a process crash).
+                if test -f ${process_pid_file_name} ; then
+                    start_type="auto"
+                else
+                    start_type="manual"
+                fi
+                start_process
+                if test "${proc_state}" = "STOPPED" ; then
+                    log_msg "WARNING: Could not start process: [${cmdstring}]"
+                else
+                    if test ${start_type} = "auto" ; then
+                        let "num_auto_start+=1"
+                        ${echo} ${num_auto_start} > ${num_auto_start_file}
+                    else
+                        let "num_manual_start+=1"
+                        ${echo} ${num_manual_start} > ${num_manual_start_file}
+                    fi
+                    # transition: 7
+                    internal_proc_state="RUNNING"
+                    # Record the time at which the process start to run.
+                    process_start_time=`${date}`
+                    ${echo} ${process_start_time} > ${process_start_time_file}
+                    log_msg "INFO: Process (${process_pid}) started successfuly."
+                    log_msg "INFO: Process [${cmdstring}]"
+                    log_msg "INFO: Process (${process_pid}) is RUNNING."
+                    execute_action ${internal_proc_state}
+                fi
+            fi
+            # Update current process state.
+            check_process_state ${process_pid}
+        elif test -f "stop.cmd" ; then    # Stop process.
+            if test "${proc_state}" = "RUNNING" ; then
+
+                if test ! "${internal_proc_state}" = "STOPPING" ; then
+                    # transition: 9
+                    internal_proc_state="STOPPING"
+                    log_msg "INFO: Process (${process_pid}) is STOPPING."
+                    execute_action ${internal_proc_state}
+                fi
+
+                stop_process ${process_pid}
+                if test ! "${proc_state}" = "STOPPED" ; then
+                    log_msg "WARNING: Waiting for process (${process_pid}) to stop."
+                else
+                    # transition: 11
+                    internal_proc_state="STOPPED"
+                    let "num_stop=num_stop+1"
+                    ${echo} ${num_stop} > ${num_stop_file}
+                    log_msg "INFO: Process (${process_pid}) stopped successfuly."
+                    log_msg "INFO: Process is STOPPED."
+                    execute_action ${internal_proc_state}
+                fi
+            fi
+        elif test -f "abort.cmd" ; then # Abort process.
+            if test "${proc_state}" = "RUNNING" ; then
+                # transition: 8
+                internal_proc_state="ABORTING"
+                log_msg "INFO: Process (${process_pid}) is ABORTING."
+                execute_action ${internal_proc_state}
+
+                abort_process ${process_pid}
+                if test ! "${proc_state}" = "STOPPED" ; then
+                    log_msg "WARNING: Waiting for process (${process_pid}) to abort."
+                else
+                    # transition: 10
+                    internal_proc_state="STOPPED"
+                    let "num_abort=num_abort+1"
+                    ${echo} ${num_abort} > ${num_abort_file}
+                    ${rm} -f "abort.cmd"
+                    > "stop.cmd"
+                    log_msg "INFO: Process (${process_pid}) aborted successfuly."
+                    log_msg "INFO: Process is STOPPED."
+                    execute_action ${internal_proc_state}
+                fi
+            fi
+        fi
+
+        # Sleep a while         
+        ${sleep} ${seconds_watchdog_sleep}
+
+    done # Infinite loop [END].
+}
+
+#################################################################################
+# Function: execute_action                                                      #
+# Description: Executes the action tied with the state passed as parameter.     #
+#              This function is called each time a transition state occurs.     #
+#################################################################################
+execute_action()
+{
+    declare -r state=$1
+
+    if test "${state}" == "RUNNING" ; then
+        if test -x ${action_running_file} ; then
+            ./${action_running_file}&
+            log_msg "INFO: The action defined for the RUNNING state has been executed."
+        fi
+    elif test "${state}" == "STOPPED" ; then
+        if test -x ${action_stopped_file} ; then
+            ./${action_stopped_file}&
+            log_msg "INFO: The action defined for the STOPPED state has been executed."
+        fi
+    elif test "${state}" == "STARTING" ; then
+        if test -x ${action_starting_file} ; then
+            ./${action_starting_file}&
+            log_msg "INFO: The action defined for the STARTING state has been executed."
+        fi
+    elif test "${state}" == "STOPPING" ; then
+        if test -x ${action_stopping_file} ; then
+            ./${action_stopping_file}&
+            log_msg "INFO: The action defined for the STOPPING state has been executed."
+        fi
+    else   # "ABORTING"
+        if test -x ${action_aborting_file} ; then
+            ./${action_aborting_file}&
+            log_msg "INFO: The action defined for the ABORTING state has been executed."
+        fi
+    fi
+
+}
+
+################################################################################
+# Function: check_external_tools                                               #
+# Description: Verifies that all the external commands needed to run this      #
+#              script exits.                                                   #
+################################################################################
+check_external_tools()
+{
+    if [ ! -x "${ps}" ] ; then
+        echo "CRITICAL: Command ps is not available"
+        exit 0    
+    fi
+    if [ ! -x "${cat}" ] ; then
+        echo "CRITICAL: Command cat is not available"
+        exit 0    
+    fi
+    if [ ! -x "${grep}" ] ; then
+        echo "CRITICAL: Command grep is not available"
+        exit 0    
+    fi
+    if [ ! -x "${awk}" ] ; then
+        echo "CRITICAL: Command awk is not available"
+        exit 0    
+    fi
+    if [ ! -x "${echo}" ] ; then
+        exit 0    
+    fi
+    if [ ! -x "${sleep}" ] ; then
+        echo "CRITICAL: Command sleep is not available"
+        exit 0    
+    fi
+    if [ ! -x "${rm}" ] ; then
+        echo "CRITICAL: Command rm is not available"
+        exit 0    
+    fi
+    if [ ! -x "${kill}" ] ; then
+        echo "CRITICAL: Command kill is not available"
+        exit 0    
+    fi
+    if [ ! -x "${date}" ] ; then
+        echo "CRITICAL: Command date is not available"
+        exit 0    
+    fi
+    if [ ! -x "${tr}" ] ; then
+        echo "CRITICAL: Command tr is not available"
+        exit 0    
+    fi
+}
+
+################################################################################
+# Function: show_stats                                                         #
+# Description: Implements the "stat" command.                                  #
+################################################################################
+show_stats()
+{
+    if test -f ${num_manual_start_file} ; then
+        num_manual_start=`${cat} ${num_manual_start_file}`
+    fi
+    if test -f ${num_auto_start_file} ; then
+        num_auto_start=`${cat} ${num_auto_start_file}`
+    fi
+    if test -f ${num_stop_file} ; then
+        num_stop=`${cat} ${num_stop_file}`
+    fi
+    if test -f ${num_abort_file} ; then
+        num_abort=`${cat} ${num_abort_file}`
+    fi
+    if test -f ${watchdog_start_time_file} ; then
+        watchdog_start_time=`${cat} ${watchdog_start_time_file}`
+    fi
+
+    # Check watchdog status.
+    check_watchdog_state
+
+    if test "${watchdog_state}" = "STOPPED" ; then
+        ${echo} "This instance of watchdog is not currently running."
+        ${echo} "The following counters corresponds to the last running instance of watchdog,"
+        ${echo} "who started running at: ${watchdog_start_time}."
+    else
+        ${echo} "This instance of watchdog is running since: ${watchdog_start_time}."
+        ${echo} "The following counters corresponds to the current running instance of watchdog."
+    fi
+
+    ${echo} "Number of manual starts: ${num_manual_start}"
+    ${echo} "Number of automatic starts: ${num_auto_start}"
+    ${echo} "Number of stops: ${num_stop}"
+    ${echo} "Number of aborts: ${num_abort}"
+
+    exit 0
+}
+
+
+
+
+################################################################################
+# Function: query_process_status                                               #
+# Description: Implements the "status" command.                                #
+################################################################################
+query_process_status()
+{
+    declare state
+    declare pid
+    declare watchdog_state="RUNNING"
+
+    #debug_msg "--${FUNCNAME}--" $LINENO
+
+    # Watchdog is running. So, we check the status of process.
+    if test -f "stop.cmd" ; then
+        # This means the process is already stopped or is in the process
+        # of been stopped (STOPPING). So, we need to check.
+        if test -f ${process_pid_file_name} ; then
+            # Sanity check.
+            pid=`${cat} ${process_pid_file_name}`
+            ${echo} "Process is STOPPING (The ""stop"" command has been executed)."
+            if test -n "${pid}" ; then
+                ${echo} "PID : ${pid}"
+            fi
+        else
+            ${echo} "Process is in STOPPED state. The process is not running."
+        fi
+    elif test -f "abort.cmd" ; then
+        ${echo} "Process is in the process of been aborting."
+    else # The process seems to be running. So, we check his status.
+        if test -f ${process_pid_file_name} ; then
+            pid=`${cat} ${process_pid_file_name}`
+            if test -z "${pid}" ; then
+                ${echo} "CRITICAL: PID value not found in the process PID file."
+                exit 0
+            fi
+
+            check_process_state ${pid}
+
+            if test "${proc_state}" = "STOPPED" ; then
+                ${echo} "CRITICAL: Watchdog says the process is running, but we don't find any such process running."
+            else
+                #TODO: handle error.
+                cmdstring=`${cat} ${process_cmd_file}`
+                process_start_time=`${cat} ${process_start_time_file}`
+                ${echo} "Process is RUNNING (since ${process_start_time})."
+                ${echo} "Command line: [${cmdstring}]"
+                ${echo} "PID : ${pid}"
+            fi
+        else
+            ${echo} "CRITICAL: Didn't found the file ${process_pid_file_name}."
+            ${echo} "I can't identify if the process is running or not."
+            exit 0
+        fi
+    fi
+
+    exit 0
+}
+
+
+################################################################################
+# Function: set_limits                                                         #
+# Description: This function set different limits for process execution.       #
+################################################################################
+set_limits()
+{
+    declare core_sz=0
+
+    #
+    # Set core size.
+    #
+    core_sz=`ulimit -Hc`
+    if test "${core_sz}" = "unlimited" ; then
+        core_sz=${max_core_size_limit}
+    elif test "${core_sz}" -gt "${max_core_size_limit}" ; then
+        core_sz=${max_core_size_limit}
+    fi
+    ulimit -c ${core_sz}
+    log_msg "INFO: Maximun size for core file: ${core_sz}"
+}
+
+################################################################################
+# Function: process_command                                                    #
+# Description: This function execute a user's command.                         #
+################################################################################
+process_command()
+{
+    #debug_msg "--process_command--" $LINENO
+    cmd=`${echo} ${cmd} |${tr} [:lower:] [:upper:]`
+
+    # First check watchdog status.
+    check_watchdog_state
+
+    if test "${cmd}" = "STOP" ; then
+        if test "${watchdog_state}" = "STOPPED" ; then
+            ${echo} "This instance of watchdog is not running."
+            ${echo} "Cannot execute the stop command if watchdog is not running."
+            exit 0
+        elif test -f "stop.cmd" ; then
+            ${echo} "The stop command already executed."
+        elif test -f "abort.cmd" ; then
+            ${echo} "The abort command in progress. Please wait."
+        else
+            > "stop.cmd"
+            ${echo} "stop command executed."
+        fi
+    elif test "${cmd}" = "START" ; then
+        if test "${watchdog_state}" = "STOPPED" ; then
+            ${echo} "This instance of watchdog is not running."
+            ${echo} "Cannot execute the start command if watchdog is not running."
+            exit 0
+        elif test -f "stop.cmd" ; then
+            # We need to check here is the process is totally stopped or
+            # is stopping.
+            if test -f "${process_pid_file_name}" ; then
+                ${echo} "Can't execute start command."
+                ${echo} "Process is STOPPING (The ""stop"" command has been executed)."
+                ${echo} "Please, wait until the process is stopped to start it again."
+            else
+                ${rm} -f "stop.cmd"
+                ${echo} "start command executed."
+            fi
+        elif test -f "abort.cmd" ; then
+            ${echo} "The abort command is in progress. Please wait."
+        else
+            ${echo} "The process is already started."
+        fi
+    elif test "${cmd}" = "ABORT" ; then
+        if test "${watchdog_state}" = "STOPPED" ; then
+            ${echo} "This instance of watchdog is not running."
+            ${echo} "Cannot execute the abort command if watchdog is not running."
+            exit 0
+        elif test -f "abort.cmd" ; then
+            ${echo} "The abort command in progress. Please wait."
+        elif test -f "stop.cmd" ; then
+            ${echo} -n "The process have been stopped or the stop command"
+            ${echo} " is in progress. Please wait."
+        else
+            > "abort.cmd"
+            ${echo} "abort command executed."
+        fi
+    elif test "${cmd}" = "STATUS" ; then
+        if test "${watchdog_state}" = "STOPPED" ; then
+            ${echo} "This instance of watchdog is not running."
+            ${echo} "Cannot execute the status command if watchdog is not running."
+            exit 0
+        else
+            query_process_status
+        fi
+    elif test "${cmd}" = "STATISTICS" ; then
+        show_stats
+    else # Bad command.
+        ${echo} "Unrecognized command."
+    fi
+    exit 0
+}
+
+################################################################################
+#                         HERE STARTS THE MAIN PROGRAM                         #
+################################################################################
+
+# Sanity checks
+check_external_tools
+
+# Verify how many parameters we receive.
+# If we receive only one parameter (config path), we want to run in "watchdog"
+# mode.
+# Otherwise, if we receive two parameters (config path and command), we want to
+# run in "command" mode.
+if (( ${n_params} == 1)) ; then
+    config_dir=$1
+    run_mode="watchdog_mode"
+elif (( ${n_params} == 2)) ; then
+    config_dir=$1
+    cmd=$2
+    run_mode="command_mode"
+else
+    ${echo} "nxwatchdog v${VERSION}"
+    ${echo} "Bad parameters."
+    ${echo} "Usage: ${watchdog_name} CONFIG_DIR [COMMAND]"
+    exit 0
+fi
+
+if test "${run_mode}" = "command_mode" ; then
+    # Move to the working directory.
+    if test -d ${config_dir} ; then
+        cd ${config_dir}
+    else
+        ${echo} "Bad configuration directory: ${config_dir}"
+        exit 0
+    fi
+    process_command
+else # Watchdog mode.
+    # Set the logging directory to the current directory.
+    log_dir="."
+
+    # Move to the working directory.
+    if test -d ${config_dir} ; then
+        cd ${config_dir}
+    else
+        log_msg "Bad configuration directory: ${config_dir}"
+        exit 0
+    fi
+
+    # Job control is enabled.
+    set -o monitor
+
+
+    # Set out directory to current directory.
+    # Redirect standard output and standard error to
+    # out file.
+    out_dir="."
+    exec 1>>${out_dir}/${outfile}
+    exec 2>&1
+
+    run_watchdog
+fi
+    
+
+exit 0
+
+############################## END-OF-FILE ####################################

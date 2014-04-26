@@ -1,0 +1,119 @@
+#!/bin/bash
+
+n_params=$#
+# Check number of parameters
+if [ $n_params -ne 1 ] ; then
+    echo "Bad parameters."
+    echo "Usage: install_nxwatchdog_v030 [-i | -f]"
+    echo " -i to install."
+    echo " -f to fallback."
+    exit 0
+fi
+
+param=$1
+if [[ "$param" != "-i" && "$param" != "-f" ]] ; then
+    echo "Bad parameters."
+    echo "Usage: install_nxwatchdog_v030 [-i | -f]"
+    echo " -i to install."
+    echo " -f to fallback."
+    exit 0
+fi
+
+#
+# INSTALLATION PROCEDURE.
+#
+if [ "$param" == "-i" ] ; then
+    echo "STARTING INSTALLATION."
+    echo "All instances of nxwatchdog MUST BE stopped during installation."
+    read -p "Press <ENTER> to continue or <CRTL+C> to abort."
+
+    # Backup the previous nxwatchdog files.
+    echo "Backing up previous files..."
+    if [ -e /usr/bin/nxwatchdog ] ; then
+       mv /usr/bin/nxwatchdog /usr/bin/nxwatchdog.sav
+       if [ $? -ne 0 ] ; then
+           echo "Error while executing: mv /usr/bin/nxwatchdog /usr/bin/nxwatchdog.sav"
+           echo "Aborting installation."
+           exit 0
+       fi
+    fi
+    if [ -e /usr/share/man/man1/nxwatchdog.1.gz ] ; then
+       mv /usr/share/man/man1/nxwatchdog.1.gz /usr/share/man/man1/nxwatchdog.1.gz.sav
+       if [ $? -ne 0 ] ; then
+           echo "Error while executing:"
+           echo "\tmv /usr/share/man/man1/nxwatchdog.1.gz /usr/share/man/man1/nxwatchdog.1.gz.sav"
+           echo "Aborting installation."
+           exit 0
+       fi
+    fi
+    echo "Backing up previous files... Finished successfully."
+
+    # Installing new files.
+    echo "Installing new files..."
+    cp ./nxwatchdog /usr/bin/nxwatchdog
+    if [ $? -ne 0 ] ; then
+        echo "Error while executing: cp ./nxwatchdog /usr/bin/nxwatchdog"
+        echo "Aborting installation."
+        exit 0
+    fi
+    chmod ugo+rx /usr/bin/nxwatchdog
+    if [ $? -ne 0 ] ; then
+        echo "Error while executing: chmod ugo+rx /usr/bin/nxwatchdog"
+        echo "Aborting installation."
+        exit 0
+    fi
+
+    cp ./nxwatchdog.1.gz /usr/share/man/man1/nxwatchdog.1.gz
+    if [ $? -ne 0 ] ; then
+        echo "Error while executing:"
+        echo "\tcp ./nxwatchdog.1.gz /usr/share/man/man1/nxwatchdog.1.gz"
+        echo "Aborting installation."
+        exit 0
+    fi
+    chmod ugo+r /usr/share/man/man1/nxwatchdog.1.gz
+    if [ $? -ne 0 ] ; then
+        echo "Error while executing: chmod ugo+r /usr/share/man/man1/nxwatchdog.1.gz"
+        echo "Aborting installation."
+        exit 0
+    fi
+
+    echo "Installing new files... Finished successfully."
+    echo
+    echo "INSTALLATION FINISHED SUCCESSFULLY !"
+    exit 0
+fi
+
+
+
+#
+# FALLBACK PROCEDURE.
+#
+if [ "$param" == "-f" ] ; then
+    echo "STARTING FALLBACK."
+    echo "All instances of nxwatchdog MUST BE stopped during fallback execution."
+    read -p "Press <ENTER> to continue or <CRTL+C> to abort."
+
+    # Backup the previous nxwatchdog files.
+    echo "Restoring previous nxwatchdog files."
+    mv /usr/bin/nxwatchdog.sav /usr/bin/nxwatchdog
+    if [ $? -ne 0 ] ; then
+        echo "Error while executing: mv /usr/bin/nxwatchdog.sav /usr/bin/nxwatchdog"
+        echo "Aborting fallback."
+        exit 0
+    fi
+    mv /usr/share/man/man1/nxwatchdog.1.gz.sav /usr/share/man/man1/nxwatchdog.1.gz
+    if [ $? -ne 0 ] ; then
+        echo "Error while executing:"
+        echo "\tmv /usr/share/man/man1/nxwatchdog.1.gz.sav /usr/share/man/man1/nxwatchdog.1.gz"
+        echo "Aborting fallback."
+        exit 0
+    fi
+    echo "Restoring previous previous files... Finished successfully."
+
+    echo
+    echo "FALLBACK FINISHED SUCCESSFULLY !"
+    exit 0
+fi
+
+
+

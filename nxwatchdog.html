@@ -1,0 +1,861 @@
+<!-- Creator     : groff version 1.18.1.4 -->
+<!-- CreationDate: Sat Apr 26 00:39:24 2014 -->
+<html>
+<head>
+<meta name="generator" content="groff -Thtml, see www.gnu.org">
+<meta name="Content-Style" content="text/css">
+<title>nxwatchdog</title>
+</head>
+<body>
+
+<h1 align=center>nxwatchdog</h1>
+<a href="#NAME">NAME</a><br>
+<a href="#SYNOPSIS">SYNOPSIS</a><br>
+<a href="#DESCRIPTION">DESCRIPTION</a><br>
+<a href="#FILES">FILES</a><br>
+<a href="#COMMANDS">COMMANDS</a><br>
+<a href="#ACTIONS AND INTERNAL PROCESS STATES">ACTIONS AND INTERNAL PROCESS STATES</a><br>
+<a href="#EXAMPLES">EXAMPLES</a><br>
+<a href="#EXIT STATUS">EXIT STATUS</a><br>
+<a href="#AUTHOR">AUTHOR</a><br>
+<a href="#REPORTING BUGS">REPORTING BUGS</a><br>
+<a href="#SEE ALSO">SEE ALSO</a><br>
+
+<hr>
+<a name="NAME"></a>
+<h2>NAME</h2>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>nxwatchdog &minus; monitors a daemon process and restarts
+it in the case the process dies.</p>
+</td>
+</table>
+<a name="SYNOPSIS"></a>
+<h2>SYNOPSIS</h2>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>To run nxwatchdog in <b>monitor mode</b> :</p>
+<!-- INDENTATION -->
+<p><b>nxwatchdog</b> config_dir</p>
+<!-- INDENTATION -->
+<p>To run nxwatchdog in <b>command mode</b> :</p>
+<!-- INDENTATION -->
+<p><b>nxwatchdog</b> config_dir command</p>
+<!-- INDENTATION -->
+<p>Where,</p>
+<!-- INDENTATION -->
+<p><b>config_dir</b> is the configuration directory.</p>
+<!-- INDENTATION -->
+<p><b>command</b> is one of the followings:stop, start,
+abort, status, statistics.</p>
+</td>
+</table>
+<a name="DESCRIPTION"></a>
+<h2>DESCRIPTION</h2>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p><b>nxwatchdog</b> is a monitor process (a.k.a watchdog).
+Its main task is to monitor a process (generally a daemon),
+and restart it in case that process dies. Apart from this,
+<b>nxwatchdog</b> also provides a way to manually stop,
+start and query the current status of the process been
+monitored. Optionally, actions can be defined, so each time
+a state transition occurs in the process been monitored,
+that action is executed.</p>
+<!-- INDENTATION -->
+<p>To accomplish this, <b>nxwatchdog</b> can be run in two
+different modes: <b>monitor mode</b> and <b>command
+mode.</b> In monitor mode, <b>nxwatchdog</b> is intended to
+run as a daemon. This means, it will terminate only under
+abnormal conditions or if it receives an uncaught signal. In
+command mode, it will run as a normal command and finish
+after it completes execution of the specified commamd.</p>
+<!-- INDENTATION -->
+<p>Briefly, in <b>monitor mode nxwatchdog</b> executes the
+following steps.</p>
+</td>
+</table>
+<!-- TABS -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="4" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="17%"></td>
+<td width="1%">
+
+<p>*</p>
+</td>
+<td width="2%"></td>
+<td width="77%">
+
+<p>Check if another instance of nxwatchdog is running. If
+that is the case then terminate.</p>
+</td>
+<tr valign="top" align="left">
+<td width="17%"></td>
+<td width="1%">
+
+<p>*</p>
+</td>
+<td width="2%"></td>
+<td width="77%">
+
+<p>Read the command line stored inside the file
+<b>process.cmd</b> located in the <b>config_dir</b>
+directory.</p>
+</td>
+<tr valign="top" align="left">
+<td width="17%"></td>
+<td width="1%">
+
+<p>*</p>
+</td>
+<td width="2%"></td>
+<td width="77%">
+
+<p>Execute the previous command line, and start to monitor
+this new process.</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>In <b>command mode, nxwatchdog</b> does the
+following.</p>
+</td>
+</table>
+<!-- TABS -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="4" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="17%"></td>
+<td width="2%">
+
+<p>*</p>
+</td>
+<td width="1%"></td>
+<td width="77%">
+
+<p>Check that one instance of <b>nxwatchdog</b> is running
+in <b>monitor mode.</b></p>
+</td>
+<tr valign="top" align="left">
+<td width="17%"></td>
+<td width="2%">
+
+<p>*</p>
+</td>
+<td width="1%"></td>
+<td width="77%">
+
+<p>If <b>command</b> is <b>start, stop</b> or <b>abort;</b>
+then trigger the command to be executed by the monitor
+instance.</p>
+</td>
+<tr valign="top" align="left">
+<td width="17%"></td>
+<td width="2%">
+
+<p>*</p>
+</td>
+<td width="1%"></td>
+<td width="77%">
+
+<p>If <b>command</b> is <b>status</b> or <b>statistics</b>
+then the related information shown by this command is
+printed in <b>stdout.</b></p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="4%"></td>
+<td width="95%">
+<p><b>Running nxwatchdog in monitor mode</b></p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>To start monitoring a process, you should run
+<b>nxwatchdog</b> in <b>monitor mode.</b> In this mode,
+<b>nxwatchdog</b> only receives one parameter: A directory
+name in which to look for configuration files. There is only
+one configuration file: <b>process.cmd.</b> This file
+indicates which process to start and monitor. During its
+execution, <b>nxwatchdog</b> also creates other files inside
+this directory (to track his internal status). For a
+detailed description of all the files inside this directory
+(including process.cmd) see <b>FILES</b> below.</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="4%"></td>
+<td width="95%">
+<p><b>Running nxwatchdog in command mode</b></p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>In <b>command mode, nxwatchdog</b> provides a way to
+execute different commands (e.g. to query or change the
+process current state). For a detailed description of all
+commands, see <b>COMMANDS</b> below.</p>
+</td>
+</table>
+<a name="FILES"></a>
+<h2>FILES</h2>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="4%"></td>
+<td width="95%">
+<p><b>Configuration files</b></p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>process.cmd</p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="21%"></td>
+<td width="77%">
+<p>This is a one line file. The only line is the command
+line that <b>nxwatchdog</b> will execute and monitor (see
+<b>EXAMPLES</b> below).</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="4%"></td>
+<td width="95%">
+<p><b>Process state</b></p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>nxwatchdog.pid</p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="21%"></td>
+<td width="77%">
+<p>Stores the PID for the monitored process.</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>process.ts</p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="21%"></td>
+<td width="77%">
+<p>Stores the timestamp at which the process been monitored
+started to run.</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="4%"></td>
+<td width="95%">
+<p><b>Statistics</b></p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>abort.count</p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="21%"></td>
+<td width="77%">
+<p>Stores the number of how many times the process has been
+aborted (due to the execution of <b>abort</b> command).</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>auto_start.count</p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="21%"></td>
+<td width="77%">
+<p>Stores the number of how many times the process has been
+automatically started.</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>manual_start.count</p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="21%"></td>
+<td width="77%">
+<p>Stores the number of how many times the process has been
+manually started (due to the execution of <b>start</b>
+command).</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>stop.count</p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="21%"></td>
+<td width="77%">
+<p>Stores the number of how many times the process has been
+stopped (due to the execution of <b>stop</b> command).</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>nxwatchdog.ts</p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="21%"></td>
+<td width="77%">
+<p>Stores the timestamp at which <b>nxwatchdog</b> started
+to run.</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="4%"></td>
+<td width="95%">
+<p><b>Logging information</b></p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>nxwatchdog.log</p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="21%"></td>
+<td width="77%">
+<p><b>nxwatchdog</b> log file.</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>nxwatchdog.out</p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="21%"></td>
+<td width="77%">
+<p>All <b>stdout</b> and <b>stderr</b> (besides the log
+messages) are redirected to this file (e.g. <b>stderr</b>
+generated by external commands called from <b>nxwatchdog</b>
+).</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="4%"></td>
+<td width="95%">
+<p><b>Commands indicators.</b></p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>stop.cmd</p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="21%"></td>
+<td width="77%">
+<p>The existence of this file, means that the <b>stop</b>
+command has been triggered.</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>abort.cmd</p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="21%"></td>
+<td width="77%">
+<p>The existence of this file, means that the <b>abort</b>
+command has been triggered.</p>
+</td>
+</table>
+<a name="COMMANDS"></a>
+<h2>COMMANDS</h2>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>The following is the list of available commands to
+execute in <b>command mode.</b> To execute any of these
+commands, one instance of <b>nxwatchdog</b> should be
+running in <b>monitor mode.</b></p>
+</td>
+</table>
+<!-- TABS -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="3" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="10%">
+
+<p>start</p>
+</td>
+<td width="77%">
+
+<p>Tells the <b>nxwatchdog</b> monitor instance, to start
+the process.</p>
+</td>
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="10%">
+
+<p>stop</p>
+</td>
+<td width="77%">
+
+<p>Tells the <b>nxwatchdog</b> monitor instance, to stop
+the process (i.e. to send a SIGTERM signal to the
+process).</p>
+</td>
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="10%">
+
+<p>abort</p>
+</td>
+<td width="77%">
+
+<p>Tells the <b>nxwatchdog</b> monitor instance to abort
+the process (i.e. to send a <b>SIGABRT</b> signal to the
+process). On receiving the <b>SIGABRT</b> signal, the
+process will generate a core dump file. The maximun size for
+the core file will be set to the minimun between 1000000 and
+the hard limit.</p>
+</td>
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="10%">
+
+<p>status</p>
+</td>
+<td width="77%">
+
+<p>This command is executed directly by the
+<b>nxwatchdog</b> running in <b>command mode.</b> This
+command will return the current process status: RUNNING or
+STOPPED. In case the process is in RUNNING state, three more
+values are returned: The timestamp since the process was
+started, its process id and the command line used to start
+the process.</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>statistics</p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="21%"></td>
+<td width="77%">
+<p>This command is executed directly by the
+<b>nxwatchdog</b> running in <b>command mode.</b> This
+command will return the following statistics: number of
+times the process has been stopped, started, aborted.</p>
+</td>
+</table>
+<a name="ACTIONS AND INTERNAL PROCESS STATES"></a>
+<h2>ACTIONS AND INTERNAL PROCESS STATES</h2>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p><b>nxwatchdog</b> optionally provides a way to define
+actions to be executed each time a state transition occurs
+in the process been monitored. <b>nxwatchdog</b> tracks five
+different process states:</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>RUNNING</p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="21%"></td>
+<td width="77%">
+<p>The process is running.</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>STARTING</p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="21%"></td>
+<td width="77%">
+<p><b>nxwatchdog</b> is starting the process to be
+monitored.</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>ABORTING</p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="21%"></td>
+<td width="77%">
+<p><b>nxwatchdog</b> has issued the <b>SIGABRT</b> signal to
+the process and is waiting for the process to completelly
+stop to run.</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>STOPPING</p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="21%"></td>
+<td width="77%">
+<p><b>nxwatchdog</b> has issued the <b>SIGTERM</b> signal to
+the process and is waiting for the process to completelly
+stop to run.</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>STOPPED</p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="21%"></td>
+<td width="77%">
+<p>The program is not running.</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>Each time a state transition occurs from state A to state
+B, the action defined for state B is executed. To define an
+action for one of the states defined above, an action file
+should be created in the configuration directory. This file
+must have executing permissions. The name of this files will
+be:</p>
+<!-- INDENTATION -->
+<p>action.running - Executed when the transition ends in the
+<b>RUNNING</b> state.</p>
+<!-- INDENTATION -->
+<p>action.starting - Executed when the transition ends in
+the <b>STARTING</b> state.</p>
+<!-- INDENTATION -->
+<p>action.aborting - Executed when the transition ends in
+the <b>ABORTING</b> state.</p>
+<!-- INDENTATION -->
+<p>action.stopping - Executed when the transition ends in
+the <b>STOPPING</b> state.</p>
+<!-- INDENTATION -->
+<p>action.stopped - Executed when the transition ends in the
+<b>STOPPED</b> state.</p>
+</td>
+</table>
+<a name="EXAMPLES"></a>
+<h2>EXAMPLES</h2>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="4%"></td>
+<td width="95%">
+<p><b>Configuring nxwatchdog</b></p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>The following example shows, in a step by step sequence,
+how to configure <b>nxwatchdog</b> to monitor the execution
+of an application called my_daemon. Also, it illustrates how
+to query and execute a couple of commands.</p>
+<!-- INDENTATION -->
+<p>1. Create config directory: Create a new directory to be
+use by <b>nxwatchdog.</b></p>
+<!-- INDENTATION -->
+<p>mkdir /home/nxwdconf</p>
+<!-- INDENTATION -->
+<p>2. Create process.cmd file: Inside the directory from
+step 1, create a file called <b>process.cmd</b> whith the
+following line:</p>
+<!-- INDENTATION -->
+<p>/usr/local/bin/my_daemon -d 70000</p>
+<!-- INDENTATION -->
+<p>3. Start <b>nxwatchdog</b> in <b>monitor mode:</b> We use
+the <b>nohup</b> command to detach <b>nxwatchdog</b> from
+the console. We also add an <b>&amp;</b> at the end to run
+in background.</p>
+<!-- INDENTATION -->
+<p>nohup nxwatchdog /home/nxwdconf &amp;</p>
+<!-- INDENTATION -->
+<p>After this, <b>nxwatchdog</b> starts the process
+specified in step 2.</p>
+<!-- INDENTATION -->
+<p>4. Query process status: To query the current status of
+my_daemon, execute the <b>status</b> command.</p>
+<!-- INDENTATION -->
+<p>nxwatchdog /home/nxwdconf status</p>
+<!-- INDENTATION -->
+<p>5. Stop my_daemon: To stop the execution of my_daemon
+process, execute the <b>stop</b> command.</p>
+<!-- INDENTATION -->
+<p>nxwatchdog /home/nxwdconf stop</p>
+<!-- INDENTATION -->
+<p>6. Verify current process status: To verify that the
+process really stops, execute the <b>status</b> command
+again.</p>
+<!-- INDENTATION -->
+<p>nxwatchdog /home/nxwdconf status</p>
+<!-- INDENTATION -->
+<p>7. Start my_daemon: To start my_daemon process again,
+execute the <b>start</b> command.</p>
+<!-- INDENTATION -->
+<p>nxwatchdog /home/nxwdconf start</p>
+<!-- INDENTATION -->
+<p>8. Show statistics: To show statistics related to the
+process execution, execute the <b>statistics</b>
+command.</p>
+<!-- INDENTATION -->
+<p>nxwatchdog /home/nxwdconf statistics</p>
+</td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="4%"></td>
+<td width="95%">
+<p><b>Using nxwatchdog with cron</b></p></td>
+</table>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>To add more reliability, its possible to combine the use
+of <b>nxwatchdog</b> and <b>cron</b> to be protected in the
+case that <b>nxwatchdog</b> stop to run.</p>
+<!-- INDENTATION -->
+<p>If we add the following line in the crontab file</p>
+<!-- INDENTATION -->
+<p>* * * * * /login/sg206816/nxwatchdog /home/nxwdconf</p>
+<!-- INDENTATION -->
+<p><b>cron</b> will start <b>nxwatchdog</b> in monitor mode
+once every minute. If nxwatchdog is running at the moment
+<b>cron</b> start it, it will stop. In other case, it will
+be restarted by <b>cron.</b></p>
+</td>
+</table>
+<a name="EXIT STATUS"></a>
+<h2>EXIT STATUS</h2>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p><b>nxwatchdog</b> returns a zero exit status if it
+executes successfuly. Non zero is returned in case of
+failure.</p>
+</td>
+</table>
+<a name="AUTHOR"></a>
+<h2>AUTHOR</h2>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>Written by Sergio Nardi Spinelli &lt;sergio.nardi (at)
+gmail.com&gt;.</p>
+</td>
+</table>
+<a name="REPORTING BUGS"></a>
+<h2>REPORTING BUGS</h2>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>Report bugs to &lt;sergio.nardi (at) gmail.com&gt;.</p>
+</td>
+</table>
+<a name="SEE ALSO"></a>
+<h2>SEE ALSO</h2>
+<!-- INDENTATION -->
+<table width="100%" border=0 rules="none" frame="void"
+       cols="2" cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="10%"></td>
+<td width="89%">
+<p>nohup(1), cron(8), crontab(1)</p>
+</td>
+</table>
+<hr>
+</body>
+</html>
